@@ -1,0 +1,18 @@
+[s3]
+access_key_id = "0000000000000000000000000"
+bucket = "bucket_name"
+endpoint = "endpoint_name"
+region = "region_name"
+secret_access_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[[backup]]
+exclude = ["data"]
+name = "test"
+path = "../test-rust"
+interval = 86400
+
+[[backup]]
+exclude = ["data"]
+name = "test2"
+path = "../test-rust"
+interval = 43200

@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  s-backup:
+    image: s-backup:latest
+    restart: unless-stopped
+    environment:
+      RUST_LOG: "info"
+    volumes:
+      - ./data:/data

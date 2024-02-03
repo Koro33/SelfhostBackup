@@ -1,0 +1,35 @@
+[package]
+authors = ["koro33 <koro33g@gmail.com>"]
+edition = "2021"
+name = "s-backup"
+version = "0.1.0"
+
+license = "MIT"
+publish = false
+readme = "README.md"
+repository = "https://github.com/Koro33/s-backup"
+
+[dependencies]
+anyhow = "1.0.79"
+blake3 = { version = "1.5.0", features = ["mmap", "rayon"] }
+chrono = { version = "0.4.33" }
+humansize = { version = "2.1.3", features = ["impl_style"] }
+opendal = { version = "0.44.2", features = ["layers-tracing"] }
+serde = { version = "1.0.196", features = ["derive"] }
+tempfile = "3.9.0"
+tokio = { version = "1.36.0", features = [
+    "macros",
+    "process",
+    "rt-multi-thread",
+] }
+tokio-cron-scheduler = "0.10.0"
+toml = "0.8.9"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+
+[profile.release]
+lto = true
+panic = 'abort'
+strip = true
