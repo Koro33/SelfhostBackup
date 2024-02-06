@@ -2,7 +2,7 @@ FROM rust:latest as rust-builder
 WORKDIR /build
 
 # Copy Cargo files
-COPY ./Cargo.toml ./Cargo.lock ./
+COPY ./Cargo.toml ./
 
 # Create fake main.rs file in src and build
 RUN mkdir ./src && echo 'fn main() { panic!("Dummy Image Called!")}' > ./src/main.rs
