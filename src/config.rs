@@ -13,7 +13,20 @@ pub struct Backup {
     pub name: String,
     pub path: String,
     pub exclude: Vec<String>,
-    pub interval: u64
+    #[serde(default = "Backup::default_interval")]
+    pub interval: usize,
+    #[serde(default = "Backup::default_keep")]
+    pub keep: usize,
+}
+
+impl Backup {
+    fn default_interval() -> usize {
+        24 * 60 * 60
+    }
+
+    fn default_keep() -> usize {
+        7
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +36,14 @@ pub struct S3 {
     pub endpoint: String,
     pub access_key_id: String,
     pub secret_access_key: String,
+    #[serde(default = "S3::default_root")]
+    pub root: String,
+}
+
+impl S3 {
+    fn default_root() -> String {
+        "/backup".to_string()
+    }
 }
 
 pub async fn read_config<P>(path: P) -> Result<Config, anyhow::Error>
@@ -56,6 +77,7 @@ mod tests {
     async fn test_read_config() {
         let path = Path::new("./tests/config.toml");
         let config = read_config(path).await.unwrap();
+        println!("{:#?}", config);
         assert_eq!(config.backup.len(), 2);
     }
 }

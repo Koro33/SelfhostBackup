@@ -14,6 +14,7 @@ use tempfile::TempDir;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
+    signal,
     task::spawn_blocking,
 };
 
@@ -37,19 +38,36 @@ async fn main() -> Result<()> {
 
     let s3_op = init_s3(&config.s3).await?;
 
-    let mut handles = vec![];
-
     for b in &config.backup {
         let b_clone = b.clone();
         let s3_op_clone = s3_op.clone();
-        let handle = tokio::spawn(async move {
+        let _handle = tokio::spawn(async move {
             period_backup(&b_clone, &s3_op_clone).await.unwrap();
         });
-        handles.push(handle);
     }
 
-    for handle in handles {
-        handle.await?;
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+        tracing::warn!("signal terminate received");
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install signal handler");
+        tracing::warn!("signal ctrl_c received");
+    };
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
 
     Ok(())
@@ -62,11 +80,16 @@ async fn period_backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
             e
         });
 
-        tokio::time::sleep(std::time::Duration::from_secs(b.interval)).await
+        tokio::time::sleep(std::time::Duration::from_secs(b.interval as u64)).await
     }
 }
 
 async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
+    let entries = s3_oprator.list("/").await.map_err(|e| {
+        tracing::error!("connect to s3 failed: {}", e);
+        e
+    })?;
+
     let backup_source = Path::new(&b.path);
 
     let temp_dir = TempDir::new()?;
@@ -133,7 +156,7 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
     let mut reader = BufReader::new(compressed_file);
 
     // writer for s3
-    let backup_path = Path::new("/backup").join(cpsd_f.to_filename());
+    let backup_path = Path::new("/").join(cpsd_f.to_filename());
     let mut writer = s3_oprator
         .writer_with(backup_path.to_str().unwrap())
         .buffer(8 * 1024 * 1024)
@@ -150,7 +173,31 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
 
     tracing::info!("backup to `{}` success", backup_path.display(),);
 
+    // remove old backup
+    let to_remove = find_remove_files(&entries, &b.name, b.keep);
+    if !to_remove.is_empty() {
+        s3_oprator.remove(to_remove.clone()).await?;
+        tracing::info!("removed old backup: {:?}", to_remove);
+    }
+
     Ok(())
+}
+
+fn find_remove_files(entries: &[opendal::Entry], name: &str, keep: usize) -> Vec<String> {
+    // backup_file_list order old -> new
+    let to_remove: Vec<String> = entries
+        .iter()
+        .filter(|x| {
+            x.metadata().mode().is_file()
+                && x.path().starts_with("backup")
+                && x.path().split('-').nth(1).is_some_and(|x| x == name)
+        })
+        .map(|x| x.path())
+        .rev()
+        .skip(keep - 1)
+        .map(|x| x.to_string())
+        .collect();
+    to_remove
 }
 
 #[cfg(test)]
