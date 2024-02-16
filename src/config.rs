@@ -65,6 +65,11 @@ where
         return Err(anyhow::anyhow!("deplicated backup name in config"));
     }
 
+    // check if name contens `-`
+    if config.backup.iter().any(|b| b.name.contains('-')) {
+        return Err(anyhow::anyhow!("backup name can not contain `-`"));
+    }
+
     Ok(config)
 }
 

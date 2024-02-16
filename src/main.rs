@@ -98,16 +98,24 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
 
     // Compress with subprocess
     let mut cmd = Command::new("tar");
-    cmd.args([
-        "--zstd",
-        "-cf",
+
+    let mut args = vec![
+        "--zstd".to_string(),
+        "-cf".to_string(),
         temp_dest
             .to_str()
-            .ok_or(anyhow!("failed to convert path to string"))?,
+            .ok_or(anyhow!("failed to convert path to string"))?
+            .to_string(),
+    ];
+    args.extend(b.exclude.iter().map(|e| format!("--exclude={}", e)));
+    args.push(
         backup_source
             .to_str()
-            .ok_or(anyhow!("failed to convert path to string"))?,
-    ])
+            .ok_or(anyhow!("failed to convert path to string"))?
+            .to_string(),
+    );
+
+    cmd.args(args)
     .kill_on_drop(true);
 
     cmd.stdin(Stdio::piped());
