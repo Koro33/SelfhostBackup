@@ -19,7 +19,7 @@ RUN cargo build --release
 
 # Second stage putting the build result into a debian jessie-slim image
 FROM debian:stable-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates zstd && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 COPY --from=rust-builder /build/target/release/s-backup /usr/local/bin/
