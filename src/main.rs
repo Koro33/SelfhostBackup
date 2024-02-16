@@ -130,6 +130,7 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
     }
     if !child.wait().await?.success() {
         tracing::error!("failed to compress");
+        return Err(anyhow!("failed to compress"));
     };
 
     // Calculate blake3 hash
