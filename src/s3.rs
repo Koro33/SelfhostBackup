@@ -24,19 +24,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_init_s3() {
-        let config = read_config(
-            std::env::var("SB_CONFIG_PATH").unwrap_or("./tests/config.toml".to_string()),
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!("read config failed: {}", e);
-            e
-        })
-        .unwrap();
+        let config = read_config("./tests/config.toml")
+            .await
+            .map_err(|e| {
+                tracing::error!("read config failed: {}", e);
+                e
+            })
+            .unwrap();
         let s3_op = init_s3(&config.s3).await.unwrap();
 
         let entries = s3_op.list("/backup/").await.unwrap();
         println!("{:#?}", entries);
-
     }
 }

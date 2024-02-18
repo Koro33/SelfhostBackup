@@ -1,14 +1,15 @@
-use anyhow::{anyhow, Result};
-use humansize::{FormatSize, DECIMAL};
-use opendal::Operator;
 use s_backup::{
     calc_hash_mmap_rayon,
     config::{read_config, Backup},
     init_tracing,
     s3::init_s3,
-    CpsdFileName,
+    Args, Commands, CpsdFileName,
 };
 
+use anyhow::{anyhow, Result};
+use clap::Parser;
+use humansize::{FormatSize, DECIMAL};
+use opendal::Operator;
 use std::{os::linux::fs::MetadataExt, path::Path, process::Stdio};
 use tempfile::TempDir;
 use tokio::{
@@ -22,28 +23,11 @@ use tokio::{
 async fn main() -> Result<()> {
     init_tracing();
 
-    let default_config_path = if cfg!(debug_assertions) {
-        "./tests/config.toml"
-    } else {
-        "./config.toml"
-    };
+    let args = Args::parse();
 
-    let config =
-        read_config(std::env::var("SB_CONFIG_PATH").unwrap_or(default_config_path.to_string()))
-            .await
-            .map_err(|e| {
-                tracing::error!("read config failed: {}", e);
-                e
-            })?;
-
-    let s3_op = init_s3(&config.s3).await?;
-
-    for b in &config.backup {
-        let b_clone = b.clone();
-        let s3_op_clone = s3_op.clone();
-        let _handle = tokio::spawn(async move {
-            period_backup(&b_clone, &s3_op_clone).await.unwrap();
-        });
+    match &args.command {
+        Commands::Run { config } => run(config).await?,
+        Commands::Test { config } => test(config).await?,
     }
 
     #[cfg(unix)]
@@ -73,12 +57,42 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+async fn run(config_path: &str) -> Result<()> {
+    let config = read_config(config_path).await.map_err(|e| {
+        tracing::error!("read config failed at `{}`: {}", config_path, e);
+        e
+    })?;
+
+    let s3_op = init_s3(&config.s3).await?;
+
+    for b in &config.backup {
+        let b_clone = b.clone();
+        let s3_op_clone = s3_op.clone();
+        let _handle = tokio::spawn(async move {
+            period_backup(&b_clone, &s3_op_clone).await.unwrap();
+        });
+    }
+
+    Ok(())
+}
+
+async fn test(config_path: &str) -> Result<()> {
+    tracing::warn!("test unimplemented");
+    Ok(())
+}
+
 async fn period_backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
     loop {
         let _ = backup(b, s3_oprator).await.map_err(|e| {
             tracing::error!("backup failed: {}", e);
             e
         });
+
+        let next_run_date = chrono::Utc::now() + chrono::Duration::seconds(b.interval as i64);
+        tracing::info!(
+            "The next backup will be run at {}",
+            next_run_date.to_rfc2822()
+        );
 
         tokio::time::sleep(std::time::Duration::from_secs(b.interval as u64)).await
     }
@@ -115,8 +129,7 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
             .to_string(),
     );
 
-    cmd.args(args)
-    .kill_on_drop(true);
+    cmd.args(args).kill_on_drop(true);
 
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::null());
@@ -129,7 +142,6 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
         tracing::warn!("{}", line);
     }
     if !child.wait().await?.success() {
-        tracing::error!("failed to compress");
         return Err(anyhow!("failed to compress"));
     };
 
@@ -173,6 +185,7 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
         .unwrap();
 
     // start upload
+    tracing::info!("start uploading...",);
     match tokio::io::copy(&mut reader, &mut writer).await {
         Ok(_) => writer.close().await?,
         Err(_e) => {

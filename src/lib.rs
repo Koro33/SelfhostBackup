@@ -6,12 +6,38 @@ use anyhow::anyhow;
 use blake3::Hash;
 use chrono::prelude::*;
 
+use clap::{Parser, Subcommand};
 use std::{
     fs::File,
     io::{BufReader, Error},
     path::Path,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Run Backup
+    Run {
+        /// config file path
+        #[arg(short, long, default_value = "./config.toml")]
+        config: String,
+    },
+
+    /// Test Config
+    Test {
+        /// config file path
+        #[arg(short, long, default_value = "./config.toml")]
+        config: String,
+    },
+}
 
 #[derive(Debug, Clone)]
 pub struct CpsdFileName {
