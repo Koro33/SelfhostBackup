@@ -9,7 +9,7 @@ RUN mkdir ./src && echo 'fn main() { panic!("Dummy Image Called!")}' > ./src/mai
 RUN cargo build --release
 
 # Copy source files over
-RUN rm -rf ./src && rm -rf ./target/release
+RUN rm -rf ./src
 COPY ./src ./src
 
 # The last modified attribute of main.rs needs to be updated manually,
@@ -22,7 +22,8 @@ FROM debian:stable-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates zstd && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-COPY --from=rust-builder /build/target/release/s-backup /usr/local/bin/
-WORKDIR /usr/local/bin
-CMD ["s-backup"]
+COPY --from=rust-builder /build/target/release/s-backup /app/
+ENV TZ=Etc/UTC
+WORKDIR /app
+ENTRYPOINT ["/app/s-backup"]
 

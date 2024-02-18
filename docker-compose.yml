@@ -5,6 +5,8 @@ services:
     image: s-backup:latest
     restart: unless-stopped
     environment:
-      RUST_LOG: "info"
+      - TZ=Etc/UTC
     volumes:
-      - ./data:/data
+      - ./config.toml:/app/config.toml
+      - /path/to/backup:/backup_path_in_config:ro
+    command: [run, --config, ./config.toml]

@@ -6,13 +6,14 @@ region = "region_name"
 secret_access_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 [[backup]]
-exclude = ["data"]
+exclude = ["exclude", "data"]
 name = "test"
 path = "../test-rust"
 interval = 86400
+keep = 5
 
 [[backup]]
-exclude = ["data"]
+exclude = ["exclude", "data"]
 name = "test2"
 path = "../test-rust"
 interval = 43200
