@@ -90,7 +90,8 @@ async fn period_backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
 
         let next_run_date = chrono::Utc::now() + chrono::Duration::seconds(b.interval as i64);
         tracing::info!(
-            "The next backup will be run at {}",
+            "[{}] The next backup will be run at {}",
+            b.name,
             next_run_date.to_rfc2822()
         );
 
@@ -137,13 +138,26 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
 
     let mut child = cmd.spawn().expect("failed to spawn command");
     let stderr = child.stderr.take().expect("failed to get child's stderr");
-    let mut reader = BufReader::new(stderr).lines();
-    while let Some(line) = reader.next_line().await? {
+    let mut stderr_reader = BufReader::new(stderr).lines();
+    while let Some(line) = stderr_reader.next_line().await? {
         tracing::warn!("{}", line);
     }
-    if !child.wait().await?.success() {
-        return Err(anyhow!("failed to compress"));
-    };
+
+    let exit_code = child
+        .wait()
+        .await?
+        .code()
+        .ok_or(anyhow!("tar is terminated by signal"))
+        .map_err(|e| {
+            tracing::error!("failed to get exit code: {}", e);
+            e
+        })?;
+
+    match exit_code {
+        // ignore exitcode 1, to fix `tar: file changed as we read it`
+        0 | 1 => {}
+        _ => return Err(anyhow!("failed to compress")),
+    }
 
     // Calculate blake3 hash
     let temp_dest_clone = temp_dest.clone();
