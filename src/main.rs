@@ -26,32 +26,11 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     match &args.command {
-        Commands::Run { config } => run(config).await?,
+        Commands::Run { config } => {
+            run(config).await?;
+            graceful_shutdown().await;
+        }
         Commands::Test { config } => test(config).await?,
-    }
-
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
-        tracing::warn!("signal terminate received");
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install signal handler");
-        tracing::warn!("signal ctrl_c received");
-    };
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
     }
 
     Ok(())
@@ -77,7 +56,21 @@ async fn run(config_path: &str) -> Result<()> {
 }
 
 async fn test(config_path: &str) -> Result<()> {
-    tracing::warn!("test unimplemented");
+    // check config file syntax
+    let config = read_config(config_path).await.map_err(|e| {
+        tracing::error!("❌ read config failed at `{}`: {}", config_path, e);
+        e
+    })?;
+    tracing::info!("✅ config file syntax is ok");
+
+    // check s3 instance
+    let s3_op = init_s3(&config.s3).await?;
+    s3_op.check().await.map_err(|e| {
+        tracing::error!("❌ connect to s3 service failed: {}", e);
+        e
+    })?;
+    tracing::info!("✅ connect to s3 service successfully");
+
     Ok(())
 }
 
@@ -123,12 +116,14 @@ async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
             .to_string(),
     ];
     args.extend(b.exclude.iter().map(|e| format!("--exclude={}", e)));
+    args.push("-C".to_string());
     args.push(
         backup_source
             .to_str()
             .ok_or(anyhow!("failed to convert path to string"))?
             .to_string(),
     );
+    args.push(".".to_string());
 
     cmd.args(args).kill_on_drop(true);
 
@@ -234,6 +229,32 @@ fn find_remove_files(entries: &[opendal::Entry], name: &str, keep: usize) -> Vec
         .map(|x| x.to_string())
         .collect();
     to_remove
+}
+
+async fn graceful_shutdown() {
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+        tracing::warn!("signal terminate received");
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install signal handler");
+        tracing::warn!("signal ctrl_c received");
+    };
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
 
 #[cfg(test)]
