@@ -2,11 +2,11 @@ version: '3'
 
 services:
   s-backup:
-    image: s-backup:latest
+    image: ghcr.io/koro33/s-backup:latest
     restart: unless-stopped
     environment:
       - TZ=Etc/UTC
     volumes:
-      - ./config.toml:/app/config.toml
+      - /path/to/config.toml:/app/config.toml  # config.toml
       - /path/to/backup:/backup_path_in_config:ro
     command: [run, --config, ./config.toml]

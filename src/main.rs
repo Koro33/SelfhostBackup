@@ -93,6 +93,8 @@ async fn period_backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
 }
 
 async fn backup(b: &Backup, s3_oprator: &Operator) -> Result<()> {
+    tracing::info!("[{}] Start backup", b.name);
+
     let entries = s3_oprator.list("/").await.map_err(|e| {
         tracing::error!("connect to s3 failed: {}", e);
         e

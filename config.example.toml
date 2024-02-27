@@ -1,3 +1,4 @@
+# provide s3 configuration
 [s3]
 access_key_id = "0000000000000000000000000"
 bucket = "bucket_name"
@@ -5,15 +6,19 @@ endpoint = "endpoint_name"
 region = "region_name"
 secret_access_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
+# backup task configuration
 [[backup]]
-exclude = ["exclude", "data"]
-name = "test"
-path = "../test-rust"
-interval = 86400
-keep = 5
+exclude = ["./some_path", "./another/path"]   # exclude path (relative path to the `path` in this section)
+interval = 86400                              # run backup every n seconds
+keep = 5                                      # keep n backups (default: 5)
+name = "backup_task_1"                        # backup name (should be unique between tasks)
+path = "/backup/path"                         # location (see volume in docker-compose.yml)
 
+# another task
 [[backup]]
-exclude = ["exclude", "data"]
-name = "test2"
-path = "../test-rust"
+exclude = ["path", "to", "exclude"]
 interval = 43200
+name = "backup_task_2"
+path = "/backup/path"
+
+# ...
